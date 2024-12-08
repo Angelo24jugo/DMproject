@@ -1,3 +1,4 @@
+#Part 1: Game Initialization and Setup (Lines 1-37)
 import random
 import time
 import winsound
@@ -33,6 +34,7 @@ class SlotMachine:
             '💎': 0, '7️⃣': 0, '🎰': 0
         }
 
+        #Part 2: Sound System (Lines 38-77)
         # Create sounds directory if it doesn't exist
         if not os.path.exists(self.sound_dir):
             os.makedirs(self.sound_dir)
@@ -72,6 +74,7 @@ class SlotMachine:
     def play_spin_sound(self):
         self.play_sound('spin.wav')
 
+    # Part 3: Game Display and Chances (Lines 78-114)
     def show_chances(self):
         print("\n=== YOUR CHANCES TO WIN ===")
         print("Diamond (💎): Very Rare!")
@@ -110,6 +113,7 @@ class SlotMachine:
         result = [random.choice(weighted_symbols) for _ in range(3)]
         
         # Update symbol frequencies
+        # Part 4: Betting and Win Logic (Lines 115-172)
         for symbol in result:
             self.symbol_counts[symbol] += 1
             
@@ -165,6 +169,7 @@ class SlotMachine:
             self.losing_streak += 1  # Increase losing streak
             
             # Add bonus chance for rare symbols after many losses
+            # Part 5: Statistics and Game Flow (Lines 173-218)
             if self.losing_streak > 5:
                 print("Your luck is increasing!")
                 self.symbol_chances['💎'] = 2  # Temporarily increase diamond chance
