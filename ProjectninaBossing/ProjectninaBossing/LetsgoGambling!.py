@@ -1,18 +1,37 @@
 import random
 import time
-from colorama import init, Fore, Style
 import winsound
 import os
-
-# Initialize colorama for colored output
-init()
-
 
 class SlotMachine:
     def __init__(self):
         self.symbols = ['🍒', '🍊', '🍋', '💎', '7️⃣', '🎰']
         self.balance = 1000  # Starting balance
         self.sound_dir = os.path.join(os.path.dirname(__file__), 'sounds')
+        
+        # Initialize statistics
+        self.total_plays = 0
+        self.total_wins = 0
+        self.biggest_win = 0
+        self.total_money_won = 0
+        self.total_money_lost = 0
+
+        # Add simple probability system
+        self.symbol_chances = {
+            '💎': 1,    # Super rare!
+            '7️⃣': 2,    # Pretty rare
+            '🎰': 3,    # Kind of rare
+            '🍒': 4,    # Normal
+            '🍊': 5,    # Common
+            '🍋': 5     # Common
+        }
+        self.losing_streak = 0  # Track losing streak
+        
+        # Add symbol frequency tracking
+        self.symbol_counts = {
+            '🍒': 0, '🍊': 0, '🍋': 0,
+            '💎': 0, '7️⃣': 0, '🎰': 0
+        }
 
         # Create sounds directory if it doesn't exist
         if not os.path.exists(self.sound_dir):
@@ -53,76 +72,143 @@ class SlotMachine:
     def play_spin_sound(self):
         self.play_sound('spin.wav')
 
+    def show_chances(self):
+        print("\n=== YOUR CHANCES TO WIN ===")
+        print("Diamond (💎): Very Rare!")
+        print("Seven (7️⃣): Rare")
+        print("Slot Machine (🎰): Uncommon")
+        print("Other symbols: Normal")
+        
+        print("\nWinning combinations:")
+        print("3 Diamonds = SUPER JACKPOT! (10x bet)")
+        print("3 same symbols = Big win! (5x bet)")
+        print("2 same symbols = Small win! (2x bet)")
+        print("=" * 40)  # Add a line of 40 equal signs as a separator
+        
+        # Show current bonus from losing streak
+        if self.losing_streak > 5:
+            print(f"\nLosing Streak Bonus: Active! ({self.losing_streak} losses)")
+            print("Your chance for rare symbols is increased!")
+            
+        # Add symbol frequency display
+        if self.total_plays > 0:
+            print("\n=== SYMBOL FREQUENCY ===")
+            for symbol in self.symbols:
+                percentage = (self.symbol_counts[symbol] / (self.total_plays * 3)) * 100
+                print(f"{symbol} appeared: {self.symbol_counts[symbol]} times ({percentage:.1f}%)")
+
+    def spin(self):
+        print("\nSpinning...")
+        self.play_spin_sound()
+        time.sleep(1)
+        
+        # Make weighted random choice based on symbol chances
+        weighted_symbols = []
+        for symbol, chance in self.symbol_chances.items():
+            weighted_symbols.extend([symbol] * chance)
+        
+        result = [random.choice(weighted_symbols) for _ in range(3)]
+        
+        # Update symbol frequencies
+        for symbol in result:
+            self.symbol_counts[symbol] += 1
+            
+        return result
+
     def display_balance(self):
-        print(f"\n{Fore.YELLOW}Current Balance: ${self.balance}{Style.RESET_ALL}")
+        print(f"\nCurrent Balance: ${self.balance}")
 
     def get_bet(self):
         while True:
             try:
-                bet = int(input(f"{Fore.CYAN}Enter your bet amount (minimum $1): ${Style.RESET_ALL}"))
+                bet = int(input("Enter your bet amount (minimum $1): $"))
                 if 1 <= bet <= self.balance:
                     return bet
                 else:
-                    print(f"{Fore.RED}Invalid bet! Must be between $1 and ${self.balance}{Style.RESET_ALL}")
+                    print(f"Invalid bet! Must be between $1 and ${self.balance}")
             except ValueError:
-                print(f"{Fore.RED}Please enter a valid number!{Style.RESET_ALL}")
-
-    def spin(self):
-        print(f"\n{Fore.GREEN}Spinning...{Style.RESET_ALL}")
-        self.play_spin_sound()
-        time.sleep(1)
-        return [random.choice(self.symbols) for _ in range(3)]
+                print("Please enter a valid number!")
 
     def check_win(self, result, bet):
-        print(f"\n{Fore.MAGENTA}[{' '.join(result)}]{Style.RESET_ALL}")
+        print(f"\n[{' '.join(result)}]")
+        self.total_plays += 1
 
         if all(symbol == result[0] for symbol in result):  # All symbols match
             if result[0] == '💎':
                 winnings = bet * 10
-                print(f"{Fore.GREEN}JACKPOT! All Diamonds! You won ${winnings}!{Style.RESET_ALL}")
+                print(f"JACKPOT! All Diamonds! You won ${winnings}!")
                 self.play_jackpot_sound()
             else:
                 winnings = bet * 5
-                print(f"{Fore.GREEN}Winner! Triple match! You won ${winnings}!{Style.RESET_ALL}")
+                print(f"Winner! Triple match! You won ${winnings}!")
                 self.play_win_sound()
+            self.total_wins += 1
+            self.total_money_won += winnings
+            self.biggest_win = max(self.biggest_win, winnings)
+            self.losing_streak = 0  # Reset losing streak on win
             return winnings
 
         elif result.count(result[0]) == 2 or result.count(result[1]) == 2:  # Two matching symbols
             winnings = bet * 2
-            print(f"{Fore.GREEN}Nice! Double match! You won ${winnings}!{Style.RESET_ALL}")
+            print(f"Nice! Double match! You won ${winnings}!")
             self.play_win_sound()
+            self.total_wins += 1
+            self.total_money_won += winnings
+            self.biggest_win = max(self.biggest_win, winnings)
+            self.losing_streak = 0  # Reset losing streak on win
             return winnings
 
         else:
-            print(f"{Fore.RED}Sorry, you lost ${bet}!{Style.RESET_ALL}")
+            print(f"Sorry, you lost ${bet}!")
             self.play_lose_sound()
+            self.total_money_lost += bet
+            self.losing_streak += 1  # Increase losing streak
+            
+            # Add bonus chance for rare symbols after many losses
+            if self.losing_streak > 5:
+                print("Your luck is increasing!")
+                self.symbol_chances['💎'] = 2  # Temporarily increase diamond chance
+            else:
+                self.symbol_chances['💎'] = 1  # Reset to normal
+            
             return -bet
 
+    def display_stats(self):
+        win_rate = (self.total_wins / self.total_plays * 100) if self.total_plays > 0 else 0
+        print("\n=== GAME STATISTICS ===")
+        print(f"Total Plays: {self.total_plays}")
+        print(f"Total Wins: {self.total_wins}")
+        print(f"Win Rate: {win_rate:.2f}%")
+        print(f"Biggest Win: ${self.biggest_win}")
+        print(f"Total Money Won: ${self.total_money_won}")
+        print(f"Total Money Lost: ${self.total_money_lost}")
+        print("====================")
+
     def play(self):
-        print(f"\n{Fore.YELLOW}Welcome to the Python Slot Machine!{Style.RESET_ALL}")
-        print(f"\n{Fore.CYAN}Note: For custom sounds, place these .wav files in the 'sounds' folder:{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}- win.wav: for winning sounds{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}- jackpot.wav: for jackpot wins{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}- lose.wav: for losing sounds{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}- spin.wav: for spinning sound{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}- sorry.wav: for out of balance sound{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}If sound files are not found, the game will use beep sounds{Style.RESET_ALL}")
+        print("\nWelcome to the Python Slot Machine!")
+
 
         while self.balance > 0:
             self.display_balance()
+            self.display_stats()  # Show statistics before each play
+            self.show_chances()   # Show current chances to win
 
             bet = self.get_bet()
             result = self.spin()
             self.balance += self.check_win(result, bet)
 
             if self.balance <= 0:
-                print(f"\n{Fore.RED}Game Over! You're out of money!{Style.RESET_ALL}")
-                self.play_out_of_balance_sound()  # Play "out of balance" sound
+                print("\nGame Over! You're out of money!")
+                self.play_out_of_balance_sound()
+                # Display final statistics
+                self.display_stats()
                 break
 
-            play_again = input(f"\n{Fore.CYAN}Would you like to play again? (y/n): {Style.RESET_ALL}").lower()
+            play_again = input("\nWould you like to play again? (y/n): ").lower()
             if play_again != 'y':
-                print(f"\n{Fore.YELLOW}Thanks for playing! You ended with ${self.balance}!{Style.RESET_ALL}")
+                print(f"\nThanks for playing! You ended with ${self.balance}!")
+                # Display final statistics
+                self.display_stats()
                 break
 
 if __name__ == "__main__":
